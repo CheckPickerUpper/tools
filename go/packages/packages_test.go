@@ -25,6 +25,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 
@@ -102,6 +103,39 @@ func testAllOrModulesParallel(t *testing.T, f func(*testing.T, packagestest.Expo
 //   - typechecker configuration is honored
 //   - import cycles are gracefully handled in type checker.
 //   - test typechecking of generated test main and cgo.
+
+// Config.GoVersion replaces the go command's own version query.
+func TestConfigGoVersion(t *testing.T) {
+	testenv.NeedsGoPackages(t)
+	t.Parallel()
+
+	load := func(goVersion string) (queried bool, err error) {
+		var mu sync.Mutex
+		cfg := &packages.Config{
+			Mode:      packages.NeedName,
+			GoVersion: goVersion,
+			Logf: func(format string, args ...any) {
+				mu.Lock()
+				defer mu.Unlock()
+				if strings.Contains(fmt.Sprintf(format, args...), "context.ReleaseTags") {
+					queried = true
+				}
+			},
+		}
+		_, err = packages.Load(cfg, "hash")
+		return queried, err
+	}
+
+	if queried, err := load(""); err != nil || !queried {
+		t.Errorf("without GoVersion: queried=%t, err=%v; want the version query and no error", queried, err)
+	}
+	if queried, err := load(runtime.Version()); err != nil || queried {
+		t.Errorf("with GoVersion %q: queried=%t, err=%v; want no version query and no error", runtime.Version(), queried, err)
+	}
+	if _, err := load("not-a-version"); err == nil {
+		t.Errorf("with an invalid GoVersion: no error; want one")
+	}
+}
 
 // The zero-value of Config has LoadFiles mode.
 func TestLoadZeroConfig(t *testing.T) {
