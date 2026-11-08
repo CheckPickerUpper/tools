@@ -229,6 +229,18 @@ type Config struct {
 	// consistent package metadata about unsaved files. However,
 	// drivers may vary in their level of support for overlays.
 	Overlay map[string][]byte
+
+	// GoVersion is the version of the go command that Load runs, such as
+	// "go1.26" or "go1.26.5", for callers that already know it.
+	//
+	// When GoVersion is empty, Load asks the go command for its version,
+	// which starts one more go command for each call to Load. When it is
+	// set, Load uses it instead. A value that is not a valid Go 1.N
+	// version, as defined by [go/version.IsValid], makes Load return an
+	// error.
+	//
+	// GoVersion is used only by the go list driver.
+	GoVersion string
 }
 
 // Load loads and returns the Go packages named by the given patterns.

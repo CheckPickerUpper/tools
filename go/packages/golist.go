@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go/version"
 	"log"
 	"os"
 	"os/exec"
@@ -749,9 +750,26 @@ func (state *golistState) shouldAddFilenameFromError(p *jsonPackage) bool {
 // getGoVersion returns the effective minor version of the go command.
 func (state *golistState) getGoVersion() (int, error) {
 	state.goVersionOnce.Do(func() {
+		if state.cfg.GoVersion != "" {
+			state.goVersion, state.goVersionError = parseGoVersion(state.cfg.GoVersion)
+			return
+		}
 		state.goVersion, state.goVersionError = gocommand.GoVersion(state.ctx, state.cfgInvocation(), state.runner)
 	})
 	return state.goVersion, state.goVersionError
+}
+
+// parseGoVersion returns the minor version X of a Go 1.X version
+// given in [Config.GoVersion].
+func parseGoVersion(v string) (int, error) {
+	var minor int
+	if !version.IsValid(v) {
+		return 0, fmt.Errorf("invalid Config.GoVersion %q", v)
+	}
+	if _, err := fmt.Sscanf(version.Lang(v), "go1.%d", &minor); err != nil {
+		return 0, fmt.Errorf("Config.GoVersion %q is not a Go 1.X version", v)
+	}
+	return minor, nil
 }
 
 // getPkgPath finds the package path of a directory if it's relative to a root
